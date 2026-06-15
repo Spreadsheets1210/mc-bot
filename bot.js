@@ -41,24 +41,22 @@ function start_bot() {
     const bot = mineflayer.createBot(bot_args)
 
     bot.on('login', () => {
-        console.log('Logged in')
+    console.log('Logged in')
 
-
-        if (config.registered == false) {
-            setTimeout(() => {
-                bot.chat(`/dk ${config.botPassword}`)
-                config.registered = true
-                console.log('[+] Đả Đăng Ký')
-
-                fs.writeFileSync('./config.json', JSON.stringify(config, null, 4))
-            }, 2000);
-        } else {
-            setTimeout(() => {
-                bot.chat(`/dn ${config.botPassword}`)
-                console.log('[+] Đả Gửi Lệnh Đăng Nhập')
-            }, 2000);
-        }
-    })
+    if (config.registered == false) {
+        setTimeout(() => {
+            bot.chat(`/dk ${config.botPassword}`)
+            config.registered = true
+            console.log('[+] Đã Đăng Ký')
+            fs.writeFileSync('./config.json', JSON.stringify(config, null, 4))
+        }, 2000)
+    } else {
+        setTimeout(() => {
+            bot.chat(`/dn ${config.botPassword}`)
+            console.log('[+] Đã Gửi Lệnh Đăng Nhập')
+        }, 2000)
+    }
+})
 
 
     bot.on('death', () => {
@@ -75,8 +73,22 @@ function start_bot() {
 
 
     bot.on('spawn', () => {
-        console.log("Đăng Nhập Thành Công")
-    })
+    console.log('Đã Spawn')
+
+    // Chờ đăng nhập xong rồi mới mở menu
+    setTimeout(() => {
+        // Bước 1: Chọn ô số 5 (0-indexed nên là 4)
+        bot.setQuickBarSlot(4)
+        console.log('[+] Đã chọn ô số 5')
+
+        // Bước 2: Chuột phải để mở menu
+        setTimeout(() => {
+            bot.activateItem()
+            console.log('[+] Đã chuột phải')
+        }, 500)
+
+    }, 3500) // Chờ 3.5s sau spawn để đăng nhập xong
+})
 
 
     bot.on('chat', (username, message) => {
@@ -135,37 +147,20 @@ function start_bot() {
     })
 
     bot.on('windowOpen', (window) => {
-        let windowTitle = window.title
+        console.log(`[+] Cửa sổ mở: ${window.title}`)
 
-        // try {
-        //     if (typeof windowTitle === 'string') {
-        //         const parsed = JSON.parse(windowTitle)
-        //         windowTitle = parsed.text || windowTitle
-        //     }
-        // } catch(error) {
-        //     console.log('[!] Something Went Wrong At Line 118')
-        // }
+    // In ra tất cả slot để biết cần bấm vào slot nào
+    window.slots.forEach((slot, index) => {
+        if (slot) {
+            console.log(`Slot ${index}: ${slot.name} x${slot.count}`)
+        }
+    })
 
-        // // Ép về string an toàn
-        // const titleString = String(windowTitle || '')
-        
-        // console.log(`[OPENNED] Title: ${titleString}`)
-        // console.log(windowTitle)
-        // console.log(window.slots)
-
-        setTimeout(() => {
-            bot.clickWindow(24, 0, 0)
-            console.log('[+] Đang Vào KingSMP')
-        }, 2653);
-        
-        // if (titleString.toLowerCase().includes('menu')) {
-        //     console.log("Found Menu")
-
-        //     setTimeout(() => {
-        //         bot.clickWindow(25, 0, 0)
-        //         console.log('[+] Clicked To KingSMP')
-        //     }, 2653);
-        // }
+    // Chờ rồi bấm vào slot cần thiết
+    setTimeout(() => {
+        bot.clickWindow(24, 0, 0) // ← đổi số 24 thành slot đúng
+        console.log('[+] Đã bấm vào menu')
+    }, 1000)
     })
 
     // bot.on('windowClose', () => {
