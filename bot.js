@@ -2,12 +2,10 @@ const mineflayer = require("mineflayer")
 const readline = require("readline")
 const config = require('./config.json')
 const fs = require('fs')
-const http = require('http')  // ← THÊM
+const http = require('http')
 
-// Giữ bot sống trên Render
-http.createServer((req, res) => res.end('Bot running!')).listen(process.env.PORT || 3000)  // ← THÊM
+http.createServer((req, res) => res.end('Bot running!')).listen(process.env.PORT || 3000)
 
-// ... phần còn lại giữ nguyên
 let bot_args = {
     host: config.host,
     port: config.port,
@@ -16,127 +14,98 @@ let bot_args = {
     respawn: config.respawn
 }
 
-
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
 })
 
-
-
-
-let reconnect = true
-
 let reconnecting = false
-
-
 let afkInterval = null
 let wAfkInterval = null
-
-
-
-
 
 function start_bot() {
     const bot = mineflayer.createBot(bot_args)
 
+    let spawnCount = 0      // đếm lần spawn: 1 = lobby, 2+ = sub-server
+    let joiningServer = false  // chỉ click window khi đang trong quá trình vào server
+
     bot.on('login', () => {
-    console.log('Logged in')
+        console.log('Logged in')
+        spawnCount = 0
 
-    if (config.registered == false) {
-        setTimeout(() => {
-            bot.chat(`/dk ${config.botPassword}`)
-            config.registered = true
-            console.log('[+] Đã Đăng Ký')
-            fs.writeFileSync('./config.json', JSON.stringify(config, null, 4))
-        }, 2000)
-    } else {
-        setTimeout(() => {
-            bot.chat(`/dn ${config.botPassword}`)
-            console.log('[+] Đã Gửi Lệnh Đăng Nhập')
-        }, 2000)
-    }
-})
-
+        if (config.registered == false) {
+            setTimeout(() => {
+                bot.chat(`/dk ${config.botPassword}`)
+                config.registered = true
+                console.log('[+] Đã Đăng Ký')
+                fs.writeFileSync('./config.json', JSON.stringify(config, null, 4))
+            }, 2000)
+        } else {
+            setTimeout(() => {
+                bot.chat(`/dn ${config.botPassword}`)
+                console.log('[+] Đã Gửi Lệnh Đăng Nhập')
+            }, 2000)
+        }
+    })
 
     bot.on('death', () => {
-        console.log('im dead')
-
+        console.log('Bot đã chết')
         let delay = Math.floor(Math.random() * 10000)
-
-        console.log(`Respawning in ${delay}...`)
-        setTimeout(() => {
-            bot.respawn()
-        }, delay);
+        console.log(`Respawn sau ${delay}ms...`)
+        setTimeout(() => bot.respawn(), delay)
     })
-
-
 
     bot.on('spawn', () => {
-    console.log('Đã Spawn')
+        spawnCount++
+        console.log(`[+] Spawn lần ${spawnCount}`)
 
-    // Chờ đăng nhập xong rồi mới mở menu
-    setTimeout(() => {
-        // Bước 1: Chọn ô số 5 (0-indexed nên là 4)
-        bot.setQuickBarSlot(4)
-        console.log('[+] Đã chọn ô số 5')
+        // Lần 1: đang ở lobby → thực hiện quy trình vào server
+        if (spawnCount === 1) {
+            setTimeout(() => {
+                bot.setQuickBarSlot(4)
+                console.log('[+] Đã chọn ô số 5')
 
-        // Bước 2: Chuột phải để mở menu
-        setTimeout(() => {
-            bot.activateItem()
-            console.log('[+] Đã chuột phải')
-        }, 500)
+                setTimeout(() => {
+                    joiningServer = true
+                    bot.activateItem()
+                    console.log('[+] Đã chuột phải, chờ menu...')
+                }, 500)
 
-    }, 3500) // Chờ 3.5s sau spawn để đăng nhập xong
-})
+            }, 3500)
 
-
-    bot.on('chat', (username, message) => {
-
-        // if (message == 'hello') {
-        //     bot.chat('hello from bot')
-        // } else if (message == 'go forward' && username == 'logiteck_0') {
-        //     bot.setControlState('forward', true)
-        // } else if (message == 'stop') {
-        //     bot.clearControlStates()
-        // } else if (message == 'jump') {
-        //     bot.setControlState('jump', true)
-        // }
-
+        // Lần 2+: đã vào sub-server
+        } else {
+            console.log('[+] Đã vào sub-server thành công!')
+        }
     })
 
+    bot.on('chat', (username, message) => {
+        // để trống hoặc thêm handler nếu cần
+    })
 
     bot.on('messagestr', (messagePosition, message) => {
         console.log(`[${message}] ${messagePosition}`)
     })
 
-
-    // cmd handler
     rl.removeAllListeners('line')
     rl.on('line', (line) => {
-
         if (line == 'menu') {
             bot.chat('/menu')
         } else if (line.includes('tpa')) {
             bot.chat(`/tpa ${config.ownerUsername}`)
         } else if (line == 'afk') {
             clearInterval(afkInterval)
-
             afkInterval = setInterval(() => {
                 bot.setControlState('jump', true)
-
-                setTimeout(() => {
-                    bot.setControlState('jump', false)
-                }, 200);
-            }, 5000);
+                setTimeout(() => bot.setControlState('jump', false), 200)
+            }, 5000)
         } else if (line == 'wafk') {
             clearInterval(wAfkInterval)
-            let yaw = 0;
-
+            let yaw = 0
             wAfkInterval = setInterval(() => {
-                yaw += 0.5; 
-                bot.look(yaw, -Math.PI / 2, true); 
-            }, 500);
+                yaw += 0.5
+                bot.look(yaw, -Math.PI / 2, true)
+            }, 500)
         } else if (line == 'stop') {
             clearInterval(wAfkInterval)
             clearInterval(afkInterval)
@@ -147,33 +116,27 @@ function start_bot() {
     })
 
     bot.on('windowOpen', (window) => {
+        // Bỏ qua nếu không phải đang trong quá trình vào server
+        if (!joiningServer) return
+
         console.log(`[+] Cửa sổ mở: ${window.title}`)
 
-    // In ra tất cả slot để biết cần bấm vào slot nào
-    window.slots.forEach((slot, index) => {
-        if (slot) {
-            console.log(`Slot ${index}: ${slot.name} x${slot.count}`)
-        }
+        // In ra slot để debug (tắt đi sau khi tìm được slot đúng)
+        window.slots.forEach((slot, index) => {
+            if (slot) console.log(`  Slot ${index}: ${slot.name} x${slot.count}`)
+        })
+
+        setTimeout(() => {
+            bot.clickWindow(24, 0, 0)  // ← đổi số này nếu cần
+            console.log('[+] Đã bấm vào menu')
+            joiningServer = false
+        }, 1000)
     })
-
-    // Chờ rồi bấm vào slot cần thiết
-    setTimeout(() => {
-        bot.clickWindow(24, 0, 0) // ← đổi số 24 thành slot đúng
-        console.log('[+] Đã bấm vào menu')
-    }, 1000)
-    })
-
-    // bot.on('windowClose', () => {
-    //     console.log('Window Closed')
-    // })
-
 
     bot.on('end', () => {
         if (reconnecting) return
-
         reconnecting = true
-        console.log('Disconnected')
-        console.log('[+] Kết Nối Lại Sau 5s')
+        console.log('Mất kết nối, reconnect sau 5s...')
 
         setTimeout(() => {
             reconnecting = false
